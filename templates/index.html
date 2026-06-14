@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Vibe Speak News{% endblock %}
+
+{% block head %}
+<style>
+  @keyframes vibeIntroFade {
+    0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+    28% { opacity: 1; transform: translateY(0) scale(1); }
+    78% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-8px) scale(1.02); }
+  }
+  @keyframes vibeOrbFloat {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50% { transform: translate3d(0, -12px, 0); }
+  }
+  .vibe-intro-card {
+    animation: vibeIntroFade 2.1s ease both;
+  }
+  .vibe-orb {
+    animation: vibeOrbFloat 2.8s ease-in-out infinite;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<!-- オープニング -->
+<div id="opening-overlay"
+  class="fixed inset-0 z-[70] flex items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6">
+  <div class="page-bg absolute inset-0 scale-110 opacity-[0.45]"></div>
+  <div class="absolute inset-0 bg-gradient-to-br from-white/70 via-sky-50/55 to-emerald-50/65"></div>
+  <div class="absolute inset-0 bg-white/20"></div>
+  <div class="vibe-orb absolute -left-16 top-14 h-48 w-48 rounded-full bg-sky-200/45 blur-3xl"></div>
+  <div class="vibe-orb absolute -right-12 bottom-16 h-56 w-56 rounded-full bg-emerald-200/45 blur-3xl" style="animation-delay: .35s"></div>
+  <div class="vibe-intro-card relative text-center">
+    <p class="mb-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-teal-600/80">Welcome to</p>
+    <h1 class="bg-gradient-to-r from-sky-700 via-teal-700 to-emerald-700 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
+      Vibe Speak News
+    </h1>
+    <p class="mt-3 text-sm font-medium text-slate-500">Watch. Think. Speak your summary.</p>
+  </div>
+</div>
+
+<!-- クラス選択オーバーレイ -->
+<div id="class-picker-overlay"
+  class="fixed inset-0 z-50 hidden items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50/95 via-white/90 to-emerald-50/95 p-4 backdrop-blur-sm">
+  <div class="pointer-events-none absolute left-8 top-10 h-40 w-40 rounded-full bg-sky-200/35 blur-3xl"></div>
+  <div class="pointer-events-none absolute bottom-8 right-8 h-48 w-48 rounded-full bg-emerald-200/35 blur-3xl"></div>
+  <div class="relative w-full max-w-md rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_18px_50px_rgba(14,116,144,0.14)]">
+    <div class="mb-4 text-center">
+      <p class="text-[10px] font-semibold uppercase tracking-[0.28em] text-teal-600/75">Start Session</p>
+      <h2 class="mt-1 text-xl font-bold text-slate-800">クラスを選択</h2>
+      <p class="mt-1 text-xs text-slate-500">授業用の動画とスピーキング設定を読み込みます。</p>
+    </div>
+
+    {% if classes %}
+    <label class="mb-1 block text-[11px] font-semibold text-slate-600" for="class-picker-select">クラス一覧</label>
+    <select id="class-picker-select" class="w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-inner outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100">
+      <option value="">— 選択してください —</option>
+      {% for c in classes %}
+      <option value="{{ c.id }}" {% if c.id == initial_class_id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-900">
+      クラスがまだ登録されていません。管理画面でクラスを作成し、授業設定を保存してください。
+    </p>
+    {% endif %}
+
+    <button type="button" id="class-picker-start"
+      class="mt-4 w-full rounded-xl bg-gradient-to-r from-sky-600 via-teal-600 to-emerald-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-700/10 transition hover:from-sky-500 hover:via-teal-500 hover:to-emerald-500 disabled:opacity-40"
+      {% if not classes %}disabled{% endif %}>
+      学習を始める
+    </button>
+    <p id="class-picker-error" class="mt-2 hidden text-center text-[11px] text-red-600"></p>
+  </div>
+</div>
+
+<!-- 生徒情報入力オーバーレイ -->
+<div id="student-info-overlay"
+  class="fixed inset-0 z-50 hidden items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50/95 via-white/90 to-emerald-50/95 p-4 backdrop-blur-sm">
+  <div class="pointer-events-none absolute left-8 top-10 h-40 w-40 rounded-full bg-sky-200/35 blur-3xl"></div>
+  <div class="pointer-events-none absolute bottom-8 right-8 h-48 w-48 rounded-full bg-emerald-200/35 blur-3xl"></div>
+  <div class="relative w-full max-w-md rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_18px_50px_rgba(14,116,144,0.14)]">
+    <div class="mb-4 text-center">
+      <p class="text-[10px] font-semibold uppercase tracking-[0.28em] text-teal-600/75">Student Info</p>
+      <h2 class="mt-1 text-xl font-bold text-slate-800">学習者情報入力</h2>
+      <p class="mt-1 text-xs text-slate-500">
+        授業クラス: <span id="lesson-class-display" class="font-semibold text-teal-700"></span>
+      </p>
+    </div>
+
+    <div id="roster-select-wrap" class="hidden mb-3">
+      <label class="mb-1 block text-[11px] font-semibold text-slate-600">名簿から選択</label>
+      <select id="roster-select"
+        class="w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-inner outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100">
+        <option value="">— 名前を選択 —</option>
+      </select>
+      <p class="mt-1 text-[10px] text-slate-400">または下のフォームで直接入力</p>
+    </div>
+
+    <div class="space-y-2">
+      <div>
+        <label class="mb-0.5 block text-[11px] font-semibold text-slate-600" for="student-class-name">HRクラス</label>
+        <input type="text" id="student-class-name" readonly
+          class="w-full rounded-xl border border-teal-100 bg-slate-50 px-3 py-2 text-sm text-slate-600 shadow-inner outline-none"
+          placeholder="HRクラス">
+      </div>
+      <div>
+        <label class="mb-0.5 block text-[11px] font-semibold text-slate-600" for="student-number">出席番号</label>
+        <input type="text" id="student-number" inputmode="numeric"
+          class="w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm text-slate-700 shadow-inner outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+          placeholder="例: 12">
+      </div>
+      <div>
+        <label class="mb-0.5 block text-[11px] font-semibold text-slate-600" for="student-name">名前</label>
+        <input type="text" id="student-name"
+          class="w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm text-slate-700 shadow-inner outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+          placeholder="例: 山田 太郎">
+      </div>
+    </div>
+
+    <button type="button" id="student-info-start"
+      class="mt-4 w-full rounded-xl bg-gradient-to-r from-sky-600 via-teal-600 to-emerald-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-700/10 transition hover:from-sky-500 hover:via-teal-500 hover:to-emerald-500">
+      学習を始める
+    </button>
+    <p id="student-info-error" class="mt-2 hidden text-center text-[11px] text-red-600"></p>
+  </div>
+</div>
+
+<div id="app-main" class="flex h-dvh flex-col overflow-hidden hidden">
+  <header class="shrink-0 border-b border-teal-100/60 bg-white/35 backdrop-blur-md">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-3 py-2">
+      <div class="flex items-baseline gap-2 min-w-0">
+        <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-sky-700 via-teal-700 to-emerald-700 bg-clip-text text-transparent shrink-0">
+          Vibe Speak News
+        </h1>
+        <span id="active-class-name" class="truncate text-xs text-slate-500"></span>
+        <span id="student-display-name" class="ml-2 text-xs font-medium text-teal-700/80"></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto grid w-full max-w-6xl flex-1 min-h-0 grid-cols-1 grid-rows-[auto_auto_1fr] gap-2 p-2 sm:grid-cols-2 sm:grid-rows-2 sm:gap-3 sm:p-3">
+    <section class="glass flex min-h-0 flex-col overflow-hidden rounded-xl p-2 shadow-lg sm:col-start-1 sm:row-start-1">
+      <div class="mb-1 flex shrink-0 items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-teal-700/80">News Clip</h2>
+      </div>
+      <div id="video-container" class="relative aspect-video w-full shrink-0 overflow-hidden rounded-lg bg-slate-900/5 ring-1 ring-teal-100 sm:aspect-auto sm:min-h-0 sm:flex-1">
+        <p id="video-placeholder" class="absolute inset-0 flex items-center justify-center p-2 text-center text-[10px] text-slate-400">
+          動画を読み込み中…
+        </p>
+        <div id="youtube-player"
+          class="absolute inset-0 hidden [&>iframe]:h-full [&>iframe]:w-full [&>iframe]:border-0"
+          aria-label="News video player"></div>
+      </div>
+    </section>
+
+    <section class="glass flex min-h-0 flex-col gap-1.5 rounded-xl p-2 shadow-lg sm:col-start-1 sm:row-start-2">
+      <div id="timers-row" class="grid shrink-0 grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <div id="prep-timer-wrap" class="glass-inset rounded-lg px-1.5 py-1 text-center">
+          <p class="text-[10px] font-medium uppercase tracking-wide text-slate-500">準備</p>
+          <p id="prep-timer" class="text-lg font-bold tabular-nums leading-tight text-sky-600">01:00</p>
+          <button type="button" id="prep-start-btn" class="text-[10px] font-medium text-teal-600 hover:text-teal-800">開始</button>
+        </div>
+        <div id="record-timer-wrap" class="glass-inset rounded-lg px-1.5 py-1 text-center">
+          <p class="text-[10px] font-medium uppercase tracking-wide text-slate-500">録音</p>
+          <p id="record-timer" class="text-lg font-bold tabular-nums leading-tight text-emerald-600">01:00</p>
+        </div>
+        <div class="glass-inset rounded-lg px-1.5 py-1">
+          <p class="text-[10px] font-medium text-slate-500">レベル</p>
+          <p id="level-display" class="mt-0.5 text-sm font-semibold text-slate-800">{{ initial_level }}</p>
+          <input type="hidden" id="level-select" value="{{ initial_level }}">
+        </div>
+        <div class="flex flex-col justify-center gap-0.5">
+          <button type="button" id="record-btn"
+            class="w-full rounded-lg bg-gradient-to-r from-teal-600 to-emerald-600 px-2 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-teal-500 hover:to-emerald-500 transition">
+            録音開始
+          </button>
+          <span id="record-status" class="text-center text-[10px] text-slate-500">待機中</span>
+        </div>
+      </div>
+
+      <div class="flex min-h-0 flex-1 flex-col">
+        <label class="mb-0.5 shrink-0 block text-[10px] font-medium text-slate-600">要約スピーチ（英語）</label>
+        <textarea id="transcript-area"
+          class="min-h-0 flex-1 w-full resize-none rounded-lg border border-teal-100 bg-white/60 px-2 py-1.5 text-xs leading-relaxed text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 shadow-inner"
+          placeholder="録音または貼り付け…"></textarea>
+      </div>
+
+      <button type="button" id="submit-btn"
+        class="shrink-0 w-full rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 py-1.5 text-sm font-semibold text-white shadow-sm hover:from-sky-500 hover:to-blue-500 transition disabled:cursor-not-allowed disabled:opacity-40"
+        disabled>
+        要約を AI に提出
+      </button>
+      <p id="submit-message" class="hidden shrink-0 text-center text-[10px]"></p>
+    </section>
+
+    <section class="glass flex min-h-0 flex-col overflow-hidden rounded-xl p-2 shadow-lg sm:col-start-2 sm:row-start-1 sm:row-span-2 sm:p-3">
+      <h2 class="mb-1 shrink-0 text-xs font-semibold uppercase tracking-wider text-teal-700/80">AI 評価フィードバック</h2>
+      <div id="feedback-area"
+        class="min-h-0 flex-1 overflow-y-auto rounded-lg border border-teal-100 bg-white/55 px-3 py-2.5 text-xs leading-relaxed text-slate-700 whitespace-pre-wrap shadow-inner">
+        要約を提出すると、ここに CEFR レベル別の評価が表示されます。
+      </div>
+    </section>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.INITIAL_LEVEL = "{{ initial_level }}";
+  window.INITIAL_CLASS_ID = "{{ initial_class_id }}";
+  window.HAS_CLASSES = {{ 'true' if classes else 'false' }};
+  window.CEFR_LEVELS = {{ cefr_levels|list|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}

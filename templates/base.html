@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Vibe Speak News{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Outfit', system-ui, sans-serif; }
+    .page-bg {
+      background-image: url("{{ url_for('static', filename='images/nature-bg.jpg') }}");
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.68);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(153, 246, 228, 0.65);
+      box-shadow: 0 8px 32px rgba(14, 116, 144, 0.08), 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(167, 243, 208, 0.55);
+      box-shadow: 0 10px 40px rgba(15, 118, 110, 0.09), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    }
+    .glass-inset {
+      background: rgba(255, 255, 255, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(153, 246, 228, 0.45);
+    }
+    .compact-input {
+      border-radius: 0.5rem;
+      border: 1px solid rgb(204 251 241);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 0.375rem 0.625rem;
+      font-size: 0.875rem;
+      color: rgb(30 41 59);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .compact-input:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgb(56 189 248);
+      border-color: rgb(125 211 252);
+    }
+    .compact-btn {
+      border-radius: 0.5rem;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: white;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      transition: background-color 0.15s;
+    }
+    details.compact-details > summary {
+      cursor: pointer;
+      list-style: none;
+    }
+    details.compact-details > summary::-webkit-details-marker { display: none; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="relative min-h-screen text-slate-800 antialiased">
+  <!-- 自然風景の透かし背景 -->
+  <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
+    <div class="page-bg absolute inset-0 scale-105 opacity-[0.38]"></div>
+    <div class="absolute inset-0 bg-gradient-to-br from-sky-100/75 via-white/55 to-emerald-100/70"></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-emerald-50/40 via-transparent to-sky-50/30"></div>
+  </div>
+
+  {% block body %}{% endblock %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

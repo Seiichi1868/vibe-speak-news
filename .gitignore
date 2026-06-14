@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.venv-*/
+data/*.json
+.flask-browser-opened
+.DS_Store
