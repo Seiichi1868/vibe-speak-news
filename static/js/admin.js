@@ -993,6 +993,8 @@
         display_language: document.getElementById("display-language").value,
         ai_model: document.getElementById("ai-model").value,
         openai_api_key: document.getElementById("openai-api-key").value.trim(),
+        webshare_proxy_username: document.getElementById("webshare-proxy-username")?.value.trim() || "",
+        webshare_proxy_password: document.getElementById("webshare-proxy-password")?.value.trim() || "",
         default_evaluation_criteria: collectDefaultCriteria(),
         admin_password: adminSettingsPasswordValue,
       };
@@ -1006,6 +1008,8 @@
         if (!data.ok) throw new Error(data.error || "保存に失敗しました");
         showMessage(settingsMessage, "管理設定を保存しました。", false);
         document.getElementById("openai-api-key").value = "";
+        const websharePasswordEl = document.getElementById("webshare-proxy-password");
+        if (websharePasswordEl) websharePasswordEl.value = "";
       } catch (err) {
         showMessage(settingsMessage, err.message, true);
       }

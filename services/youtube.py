@@ -211,13 +211,16 @@ def fetch_youtube_transcript(
     end_sec: int | None = None,
 ) -> dict:
     """YouTube の公開文字起こしを取得する（非公式 API。取得できない動画もある）。"""
-    from youtube_transcript_api import YouTubeTranscriptApi
     from youtube_transcript_api._errors import (
+        IpBlocked,
         NoTranscriptFound,
+        RequestBlocked,
         TranscriptsDisabled,
         VideoUnavailable,
         YouTubeTranscriptApiException,
     )
+
+    from services.youtube_proxy import cloud_transcript_error_message, create_youtube_transcript_api
 
     raw = str(video_id or "").strip()
     if not raw:
@@ -226,9 +229,11 @@ def fetch_youtube_transcript(
     vid = raw if _VIDEO_ID_PATTERN.fullmatch(raw) else extract_video_id(raw)
     langs = languages or ["en"]
 
-    api = YouTubeTranscriptApi()
+    api = create_youtube_transcript_api()
     try:
         fetched = api.fetch(vid, languages=langs)
+    except (IpBlocked, RequestBlocked) as exc:
+        raise ValueError(cloud_transcript_error_message()) from exc
     except TranscriptsDisabled as exc:
         raise ValueError("この動画では文字起こしが無効になっています。") from exc
     except NoTranscriptFound as exc:

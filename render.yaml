@@ -9,6 +9,10 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false
+      - key: WEBSHARE_PROXY_USERNAME
+        sync: false
+      - key: WEBSHARE_PROXY_PASSWORD
+        sync: false
       - key: FLASK_SECRET_KEY
         generateValue: true
       - key: OPENAI_MODEL
