@@ -88,22 +88,6 @@
                 <p class="mt-0.5 text-[10px] font-medium text-amber-700">⚠ 未設定</p>
                 {% endif %}
               </div>
-              <div class="col-span-2">
-                <label class="mb-0.5 block text-[11px] font-medium text-slate-600" for="webshare-proxy-username">YouTube 文字起こし用プロキシ（Webshare）</label>
-                <p class="mb-1 text-[10px] text-slate-500">Render 等のクラウド環境では必須です。Webshare の <strong>Residential</strong> プランの Proxy Username / Password を入力してください。</p>
-                <div class="grid gap-2 sm:grid-cols-2">
-                  <input type="text" id="webshare-proxy-username" name="webshare_proxy_username" autocomplete="off"
-                    class="compact-input w-full font-mono text-xs" placeholder="Proxy Username"
-                    value="{{ webshare_proxy_username }}">
-                  <input type="password" id="webshare-proxy-password" name="webshare_proxy_password" autocomplete="off"
-                    class="compact-input w-full font-mono text-xs" placeholder="Proxy Password">
-                </div>
-                {% if youtube_proxy_configured %}
-                <p class="mt-0.5 text-[10px] font-medium text-emerald-600">✓ プロキシ設定済み{% if webshare_proxy_password_masked %} {{ webshare_proxy_password_masked }}{% endif %}</p>
-                {% else %}
-                <p class="mt-0.5 text-[10px] font-medium text-amber-700">⚠ 未設定（クラウド環境では文字起こし取得に失敗します）</p>
-                {% endif %}
-              </div>
             </div>
 
             <details class="compact-details">

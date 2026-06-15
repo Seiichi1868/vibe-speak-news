@@ -282,7 +282,7 @@ def save_state(state: dict) -> dict:
 
 def update_settings(**kwargs) -> dict:
     state = load_state()
-    for key in ("display_language", "ai_model", "openai_api_key", "webshare_proxy_username", "webshare_proxy_password"):
+    for key in ("display_language", "ai_model", "openai_api_key"):
         if key in kwargs:
             state[key] = kwargs[key]
     if "default_evaluation_criteria" in kwargs and isinstance(kwargs["default_evaluation_criteria"], dict):

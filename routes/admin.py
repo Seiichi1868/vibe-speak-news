@@ -6,7 +6,6 @@ from flask import Blueprint, jsonify, render_template, request, send_file, url_f
 from config import AI_MODELS, CEFR_LEVELS, DISPLAY_LANGUAGES, get_openai_api_key, mask_api_key, save_openai_api_key
 from services.cnn10 import fetch_cnn10_episodes
 from services.cnn10_highlight import find_title_segment_in_transcript
-from services.youtube_proxy import transcript_proxy_configured
 from services.network import get_public_base_url
 from services.storage import (
     DEFAULT_EVALUATION_CRITERIA,
@@ -82,7 +81,6 @@ def youtube_transcript():
     try:
         data = fetch_youtube_transcript(
             video_id,
-            languages=["en"],
             start_sec=start_val,
             end_sec=end_val,
         )
@@ -125,7 +123,6 @@ def admin_index():
     class_id, cls = _active_class_or_none()
     current = (cls or {}).get("current") or {}
     api_key_configured = bool(get_openai_api_key())
-    youtube_proxy_configured = transcript_proxy_configured()
     classes = list_classes()
 
     return render_template(
@@ -143,9 +140,6 @@ def admin_index():
         end_time_display=seconds_to_display(int(current.get("end_seconds") or 0)),
         api_key_configured=api_key_configured,
         api_key_masked=mask_api_key(state.get("openai_api_key") or get_openai_api_key()),
-        youtube_proxy_configured=youtube_proxy_configured,
-        webshare_proxy_username=state.get("webshare_proxy_username") or "",
-        webshare_proxy_password_masked=mask_api_key(state.get("webshare_proxy_password") or ""),
     )
 
 
@@ -162,20 +156,11 @@ def save_settings():
             if not openai_api_key:
                 openai_api_key = get_openai_api_key()
 
-        webshare_proxy_username = str(data.get("webshare_proxy_username", "")).strip()
-        webshare_proxy_password = str(data.get("webshare_proxy_password", "")).strip()
-        if not webshare_proxy_username:
-            webshare_proxy_username = (load_state().get("webshare_proxy_username") or "").strip()
-        if not webshare_proxy_password:
-            webshare_proxy_password = (load_state().get("webshare_proxy_password") or "").strip()
-
         default_criteria = data.get("default_evaluation_criteria")
         kwargs = {
             "display_language": str(data.get("display_language", "ja")),
             "ai_model": str(data.get("ai_model", "gpt-4o-mini")),
             "openai_api_key": openai_api_key,
-            "webshare_proxy_username": webshare_proxy_username,
-            "webshare_proxy_password": webshare_proxy_password,
         }
         if isinstance(default_criteria, dict):
             kwargs["default_evaluation_criteria"] = default_criteria
