@@ -1,0 +1,15 @@
+# Cloudflare Workers project: YouTube transcript proxy for Vibe Speak News
+# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+
+name = "vibe-speak-proxy"
+main = "src/index.js"
+compatibility_date = "2024-06-01"
+
+# Local dev: http://127.0.0.1:8787/?id=VIDEO_ID
+workers_dev = true
+
+[observability]
+enabled = true
+
+# Optional: pin account after `wrangler whoami`
+# account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
