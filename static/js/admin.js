@@ -55,6 +55,7 @@
   let cnn10HasMore = false;
   let cnn10Loading = false;
   let cnn10OpenPreviewRow = null;
+  const transcriptClientCache = new Map();
   let suppressAutoScriptFill = false;
   let scriptAutoManaged = false;
   let autoScriptTimer = null;
@@ -115,12 +116,19 @@
       throw new Error("字幕取得モジュールが読み込まれていません。ページを再読み込みしてください。");
     }
 
+    const cacheKey = `${videoId || ""}:${startSec ?? ""}:${endSec ?? ""}`;
+    if (transcriptClientCache.has(cacheKey)) {
+      return transcriptClientCache.get(cacheKey);
+    }
+
     try {
-      return await window.YoutubeTranscript.fetchTranscript(videoId, {
-        languages: ["ja", "en"],
+      const data = await window.YoutubeTranscript.fetchTranscript(videoId, {
+        languages: ["en", "ja"],
         startSec,
         endSec,
       });
+      transcriptClientCache.set(cacheKey, data);
+      return data;
     } catch (err) {
       throw err instanceof Error ? err : new Error(String(err || "文字起こしの取得に失敗しました。"));
     }

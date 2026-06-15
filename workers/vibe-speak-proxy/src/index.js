@@ -12,6 +12,7 @@
 import { fetchNormalizedTranscript } from "./transcript.js";
 
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
+const CACHE_MAX_AGE_SEC = 86400;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -19,12 +20,13 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Accept",
 };
 
-function jsonResponse(body, status = 200) {
+function jsonResponse(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       ...CORS_HEADERS,
       "Content-Type": "application/json; charset=utf-8",
+      ...extraHeaders,
     },
   });
 }
@@ -42,6 +44,31 @@ function errorStatus(message) {
     return 429;
   }
   return 502;
+}
+
+function cacheKeyForVideo(videoId) {
+  return new Request(`https://vibe-speak-proxy.cache/transcript?id=${encodeURIComponent(videoId)}`);
+}
+
+async function readCachedTranscript(videoId) {
+  const cache = caches.default;
+  const cached = await cache.match(cacheKeyForVideo(videoId));
+  if (!cached) return null;
+
+  const body = await cached.json();
+  if (body?.ok === false || !Array.isArray(body?.snippets) || !body.snippets.length) {
+    return null;
+  }
+  return body;
+}
+
+async function writeCachedTranscript(videoId, transcript) {
+  const cache = caches.default;
+  const response = jsonResponse(transcript, 200, {
+    "Cache-Control": `public, max-age=${CACHE_MAX_AGE_SEC}`,
+  });
+  await cache.put(cacheKeyForVideo(videoId), response.clone());
+  return response;
 }
 
 export default {
@@ -65,8 +92,16 @@ export default {
     }
 
     try {
+      const cached = await readCachedTranscript(videoId);
+      if (cached) {
+        return jsonResponse(cached, 200, {
+          "Cache-Control": `public, max-age=${CACHE_MAX_AGE_SEC}`,
+          "X-Transcript-Cache": "HIT",
+        });
+      }
+
       const transcript = await fetchNormalizedTranscript(videoId);
-      return jsonResponse(transcript);
+      return writeCachedTranscript(videoId, transcript);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err || "字幕の取得に失敗しました。");
       return errorResponse(message, errorStatus(message));

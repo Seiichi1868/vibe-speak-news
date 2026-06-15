@@ -6,9 +6,9 @@
 
   const PROXY_BASE_URL = "https://vibe-speak-proxy.kishineseiichi.workers.dev/";
   const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
-  const DEFAULT_LANGUAGES = ["ja", "en"];
+  const DEFAULT_LANGUAGES = ["en", "ja"];
   const DEFAULT_TIMEOUT_MS = 30000;
-  const DEFAULT_MAX_RETRIES = 3;
+  const DEFAULT_MAX_RETRIES = 2;
   const LANGUAGE_LABELS = { ja: "Japanese", en: "English" };
 
   function extractVideoId(input) {
@@ -373,7 +373,8 @@
       try {
         const response = await fetch(url, options);
         if ([408, 425, 429, 500, 502, 503, 504].includes(response.status) && attempt < maxRetries - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 1000));
+          const delayMs = response.status === 429 ? 4000 * 2 ** attempt : 2 ** attempt * 1000;
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
         }
         return response;

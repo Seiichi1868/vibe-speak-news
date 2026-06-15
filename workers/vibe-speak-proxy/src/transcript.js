@@ -7,7 +7,9 @@ import {
   YoutubeTranscriptVideoUnavailableError,
 } from "youtube-transcript";
 
-const DEFAULT_LANGUAGES = ["ja", "en"];
+const DEFAULT_LANGUAGES = ["en", "ja"];
+const MAX_ATTEMPTS = 4;
+const RETRY_BASE_DELAY_MS = 2000;
 
 function roundSec(value) {
   return Math.round(Number(value) * 1000) / 1000;
@@ -37,6 +39,20 @@ export function mapTranscriptItems(items) {
     .filter((snippet) => snippet.text);
 }
 
+function isRetryableFetchError(err) {
+  if (err instanceof YoutubeTranscriptTooManyRequestError) return true;
+  const message = String(err?.message || err || "").toLowerCase();
+  return message.includes("429") || message.includes("rate limit") || message.includes("too many");
+}
+
+function isSoftCaptionError(err) {
+  return (
+    err instanceof YoutubeTranscriptDisabledError ||
+    err instanceof YoutubeTranscriptNotAvailableError ||
+    err instanceof YoutubeTranscriptNotAvailableLanguageError
+  );
+}
+
 function mapLibraryError(err) {
   if (err instanceof YoutubeTranscriptTooManyRequestError) {
     return new Error("YouTube へのリクエストが制限されています。しばらく待ってから再試行してください。");
@@ -44,19 +60,20 @@ function mapLibraryError(err) {
   if (err instanceof YoutubeTranscriptVideoUnavailableError) {
     return new Error("動画が見つからないか、再生できません。");
   }
-  if (
-    err instanceof YoutubeTranscriptDisabledError ||
-    err instanceof YoutubeTranscriptNotAvailableError ||
-    err instanceof YoutubeTranscriptNotAvailableLanguageError
-  ) {
+  if (isSoftCaptionError(err)) {
     return new Error("日本語・英語の字幕が見つかりませんでした。");
   }
   if (err instanceof Error) return err;
   return new Error(String(err || "字幕の取得に失敗しました。"));
 }
 
-export async function fetchNormalizedTranscript(videoId, languages = DEFAULT_LANGUAGES) {
-  let lastLanguageError = null;
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchTranscriptOnce(videoId, languages = DEFAULT_LANGUAGES) {
+  let lastSoftError = null;
+  let sawRateLimit = false;
 
   for (const lang of languages) {
     try {
@@ -70,8 +87,12 @@ export async function fetchNormalizedTranscript(videoId, languages = DEFAULT_LAN
         };
       }
     } catch (err) {
-      if (err instanceof YoutubeTranscriptNotAvailableLanguageError) {
-        lastLanguageError = err;
+      if (isSoftCaptionError(err)) {
+        lastSoftError = err;
+        continue;
+      }
+      if (isRetryableFetchError(err)) {
+        sawRateLimit = true;
         continue;
       }
       throw mapLibraryError(err);
@@ -85,14 +106,35 @@ export async function fetchNormalizedTranscript(videoId, languages = DEFAULT_LAN
       throw new Error("字幕データを解析できませんでした。");
     }
     return {
-      language_code: items[0]?.lang || languages[0] || "en",
+      language_code: items[0]?.lang || languages.find((lang) => lang === "en") || "en",
       is_generated: true,
       snippets,
     };
   } catch (err) {
-    if (lastLanguageError) {
-      throw mapLibraryError(lastLanguageError);
+    if (sawRateLimit || isRetryableFetchError(err)) {
+      throw mapLibraryError(err);
+    }
+    if (isSoftCaptionError(err) || lastSoftError) {
+      throw mapLibraryError(lastSoftError || err);
     }
     throw mapLibraryError(err);
   }
+}
+
+export async function fetchNormalizedTranscript(videoId, languages = DEFAULT_LANGUAGES) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await fetchTranscriptOnce(videoId, languages);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err || "字幕の取得に失敗しました。"));
+      if (!isRetryableFetchError(err) || attempt >= MAX_ATTEMPTS - 1) {
+        throw lastError;
+      }
+      await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt);
+    }
+  }
+
+  throw lastError || new Error("字幕の取得に失敗しました。");
 }
