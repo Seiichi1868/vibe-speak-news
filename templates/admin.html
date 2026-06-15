@@ -424,5 +424,6 @@
   window.ADMIN_CLASSES = {{ classes|tojson }};
   window.CEFR_LEVELS = {{ cefr_levels|list|tojson }};
 </script>
+<script src="{{ url_for('static', filename='js/youtube-transcript.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 {% endblock %}

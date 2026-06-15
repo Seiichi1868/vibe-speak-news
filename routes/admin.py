@@ -32,7 +32,7 @@ from services.storage import (
     update_class_current,
     update_settings,
 )
-from services.youtube import extract_video_id, fetch_youtube_title, fetch_youtube_transcript, parse_time_to_seconds, seconds_to_display
+from services.youtube import extract_video_id, fetch_youtube_title, parse_time_to_seconds, seconds_to_display
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -55,66 +55,43 @@ def cnn10_episodes():
         return jsonify({"ok": False, "error": str(exc)}), 502
 
 
-@admin_bp.route("/api/cnn10/transcript", methods=["GET"])
-@admin_bp.route("/api/youtube/transcript", methods=["GET"])
-def youtube_transcript():
-    video_id = str(request.args.get("video_id") or "").strip()
-    if not video_id:
-        return jsonify({"ok": False, "error": "動画 ID を指定してください。"}), 400
-    try:
-        extract_video_id(video_id)
-    except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+@admin_bp.route("/api/youtube/highlight", methods=["POST"])
+def youtube_highlight():
+    data = request.get_json(silent=True) or {}
+    title = str(data.get("title") or "").strip()
+    snippets = data.get("snippets") or []
+    if not title:
+        return jsonify({"ok": False, "error": "タイトルが必要です。"}), 400
+    if not isinstance(snippets, list) or not snippets:
+        return jsonify({"ok": False, "error": "文字起こしデータが必要です。"}), 400
 
-    start_sec = request.args.get("start_sec")
-    end_sec = request.args.get("end_sec")
-    start_val = None
-    end_val = None
-    try:
-        if start_sec is not None and str(start_sec).strip() != "":
-            start_val = int(start_sec)
-        if end_sec is not None and str(end_sec).strip() != "":
-            end_val = int(end_sec)
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "開始・終了時間（秒）の形式が正しくありません。"}), 400
+    api_key = get_openai_api_key()
+    if not api_key:
+        return jsonify(
+            {
+                "ok": True,
+                "highlight": {
+                    "ok": False,
+                    "error": "OpenAI API キーが未設定です。管理画面の設定からキーを保存してください。",
+                },
+            }
+        )
 
+    state = load_state()
+    model = str(state.get("ai_model") or "gpt-4o-mini")
     try:
-        data = fetch_youtube_transcript(
-            video_id,
-            start_sec=start_val,
-            end_sec=end_val,
+        highlight = find_title_segment_in_transcript(
+            title,
+            snippets,
+            model=model,
+            api_key=api_key,
         )
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 404
+        highlight = {"ok": False, "error": str(exc)}
     except Exception as exc:
-        return jsonify({"ok": False, "error": f"文字起こしの取得に失敗しました: {exc}"}), 502
+        highlight = {"ok": False, "error": f"区間推定に失敗しました: {exc}"}
 
-    title = str(request.args.get("title") or "").strip()
-    highlight = str(request.args.get("highlight") or "").strip().lower() in ("1", "true", "yes")
-    if highlight and title:
-        snippets = data.get("all_snippets") or data.get("snippets") or []
-        api_key = get_openai_api_key()
-        if not api_key:
-            data["highlight"] = {
-                "ok": False,
-                "error": "OpenAI API キーが未設定です。管理画面の設定からキーを保存してください。",
-            }
-        else:
-            state = load_state()
-            model = str(state.get("ai_model") or "gpt-4o-mini")
-            try:
-                data["highlight"] = find_title_segment_in_transcript(
-                    title,
-                    snippets,
-                    model=model,
-                    api_key=api_key,
-                )
-            except ValueError as exc:
-                data["highlight"] = {"ok": False, "error": str(exc)}
-            except Exception as exc:
-                data["highlight"] = {"ok": False, "error": f"区間推定に失敗しました: {exc}"}
-
-    return jsonify({"ok": True, **data})
+    return jsonify({"ok": True, "highlight": highlight})
 
 
 @admin_bp.route("/")

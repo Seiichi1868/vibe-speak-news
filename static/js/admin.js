@@ -110,6 +110,36 @@
     return match ? match[1] : "";
   }
 
+  async function fetchYoutubeTranscriptClient({ videoId, startSec = null, endSec = null } = {}) {
+    if (!window.YoutubeTranscript?.fetchTranscript) {
+      throw new Error("字幕取得モジュールが読み込まれていません。ページを再読み込みしてください。");
+    }
+
+    try {
+      return await window.YoutubeTranscript.fetchTranscript(videoId, {
+        languages: ["ja", "en"],
+        startSec,
+        endSec,
+      });
+    } catch (err) {
+      throw err instanceof Error ? err : new Error(String(err || "文字起こしの取得に失敗しました。"));
+    }
+  }
+
+  async function fetchYoutubeHighlight(title, snippets) {
+    const res = await fetch("/admin/api/youtube/highlight", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        snippets: snippets || [],
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "区間推定に失敗しました。");
+    return data.highlight || null;
+  }
+
   async function autoFillLessonScriptFromTranscript() {
     if (suppressAutoScriptFill) return;
 
@@ -130,15 +160,12 @@
     scriptEl.placeholder = "文字起こしを取得中…";
 
     try {
-      const qs = new URLSearchParams({
-        video_id: videoId,
-        start_sec: String(startSec),
-        end_sec: String(endSec),
+      const data = await fetchYoutubeTranscriptClient({
+        videoId,
+        startSec,
+        endSec,
       });
-      const res = await fetch(`/admin/api/youtube/transcript?${qs}`);
-      const data = await res.json();
       if (requestId !== autoScriptRequestId) return;
-      if (!data.ok) throw new Error(data.error || "文字起こしの取得に失敗しました。");
 
       scriptEl.value = data.script || "";
       scriptEl.placeholder = "英文スクリプトをここに貼り付け…";
@@ -222,17 +249,16 @@
     }
     transcriptMeta.classList.add("hidden");
 
-    const qs = new URLSearchParams({
-      video_id: videoId,
-      highlight: "1",
-    });
-    if (episodeTitle) qs.set("title", episodeTitle);
+    const data = await fetchYoutubeTranscriptClient({ videoId });
+    let highlight = null;
+    if (episodeTitle) {
+      try {
+        highlight = await fetchYoutubeHighlight(episodeTitle, data.all_snippets || data.snippets || []);
+      } catch (err) {
+        highlight = { ok: false, error: err.message || "区間推定に失敗しました。" };
+      }
+    }
 
-    const res = await fetch(`/admin/api/youtube/transcript?${qs}`);
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || "文字起こしの取得に失敗しました。");
-
-    const highlight = data.highlight || null;
     renderCnn10Transcript(transcriptText, data.snippets || [], highlight, highlightBanner);
 
     const kind = data.is_generated ? "自動生成" : "手動";
