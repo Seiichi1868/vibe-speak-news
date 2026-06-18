@@ -2,10 +2,15 @@ services:
   - type: web
     name: vibe-speak-news
     runtime: python
-    plan: free
+    # 永続ディスク利用には Starter 以上が必要（Free では data/ がデプロイごとに消える）
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
     healthCheckPath: /health
+    disk:
+      name: app-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
     envVars:
       - key: OPENAI_API_KEY
         sync: false

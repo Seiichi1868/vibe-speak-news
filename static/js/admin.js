@@ -22,6 +22,7 @@
   const adminSettingsPassword = document.getElementById("admin-settings-password");
   const adminSettingsUnlock = document.getElementById("admin-settings-unlock");
   const adminSettingsLockMessage = document.getElementById("admin-settings-lock-message");
+  const adminSettingsPanel = document.getElementById("admin-settings-panel");
   const generateLinkBtn = document.getElementById("generate-link-btn");
   const copyShareLinkBtn = document.getElementById("copy-share-link-btn");
   const shareLinkOutput = document.getElementById("share-link-output");
@@ -825,7 +826,28 @@
     reloadClassBtn.addEventListener("click", () => location.reload());
   }
 
+  function isAdminSettingsOpen() {
+    return settingsForm && !settingsForm.classList.contains("hidden");
+  }
+
+  function openAdminSettingsPanel() {
+    if (settingsForm) settingsForm.classList.remove("hidden");
+    if (adminSettingsLock) adminSettingsLock.classList.add("hidden");
+    if (adminSettingsLockMessage) adminSettingsLockMessage.classList.add("hidden");
+  }
+
+  function closeAdminSettingsPanel() {
+    if (settingsForm) settingsForm.classList.add("hidden");
+    if (adminSettingsLock) adminSettingsLock.classList.remove("hidden");
+    if (settingsMessage) settingsMessage.classList.add("hidden");
+  }
+
   function unlockAdminSettings() {
+    if (adminSettingsPasswordValue) {
+      openAdminSettingsPanel();
+      return;
+    }
+
     const password = adminSettingsPassword ? adminSettingsPassword.value.trim() : "";
     if (password !== "2479") {
       if (adminSettingsLockMessage) {
@@ -836,14 +858,19 @@
     }
 
     adminSettingsPasswordValue = password;
-    if (settingsForm) settingsForm.classList.remove("hidden");
-    if (adminSettingsLock) adminSettingsLock.classList.add("hidden");
-    if (adminSettingsLockMessage) adminSettingsLockMessage.classList.add("hidden");
+    openAdminSettingsPanel();
   }
 
   if (adminSettingsUnlock) {
     adminSettingsUnlock.addEventListener("click", unlockAdminSettings);
   }
+
+  document.addEventListener("click", (e) => {
+    if (!isAdminSettingsOpen()) return;
+    if (adminSettingsPanel && !adminSettingsPanel.contains(e.target)) {
+      closeAdminSettingsPanel();
+    }
+  });
 
   if (adminSettingsPassword) {
     adminSettingsPassword.addEventListener("keydown", (e) => {
@@ -1040,6 +1067,7 @@
         if (!data.ok) throw new Error(data.error || "保存に失敗しました");
         showMessage(settingsMessage, "管理設定を保存しました。", false);
         document.getElementById("openai-api-key").value = "";
+        closeAdminSettingsPanel();
       } catch (err) {
         showMessage(settingsMessage, err.message, true);
       }

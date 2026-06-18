@@ -195,7 +195,7 @@ def _title_looks_localized(title: str) -> bool:
 
 
 def _enrich_english_titles(episodes: list[dict]) -> list[dict]:
-    from services.youtube import fetch_youtube_title
+    from .youtube import fetch_youtube_title
 
     enriched = []
     for episode in episodes:

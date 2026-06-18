@@ -55,6 +55,7 @@
   let studentName = "";
   let youtubeApiPlayer = null;
   let youtubeApiReadyPromise = null;
+  let activePlayerSubtitles = null;
   let videoStartSeconds = 0;
   let videoEndSeconds = 0;
   let videoRangeGuardInterval = null;
@@ -165,6 +166,7 @@
       }
     }
     youtubeApiPlayer = null;
+    activePlayerSubtitles = null;
     if (youtubePlayer) {
       youtubePlayer.innerHTML = "";
       youtubePlayer.classList.add("hidden");
@@ -211,17 +213,37 @@
     youtubePlayer.classList.remove("hidden");
   }
 
+  function applySubtitles(player, enabled) {
+    if (!player || !enabled) return;
+    try {
+      if (typeof player.loadModule === "function") {
+        player.loadModule("captions");
+      }
+      if (typeof player.setOption === "function") {
+        player.setOption("captions", "track", { languageCode: "en" });
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   async function mountYouTubePlayer(videoId, start, end, subtitlesEnabled) {
     if (!youtubePlayer || !videoId) return;
 
     await loadYouTubeApi();
     const playerVars = buildPlayerVars(start, end, subtitlesEnabled);
 
+    if (youtubeApiPlayer && activePlayerSubtitles !== subtitlesEnabled) {
+      destroyYouTubePlayer();
+    }
+
     if (youtubeApiPlayer && typeof youtubeApiPlayer.loadVideoById === "function") {
       youtubeApiPlayer.loadVideoById({
         videoId,
         startSeconds: Math.max(0, start || 0),
       });
+      applySubtitles(youtubeApiPlayer, subtitlesEnabled);
+      activePlayerSubtitles = subtitlesEnabled;
       youtubePlayer.classList.remove("hidden");
       return;
     }
@@ -247,6 +269,8 @@
             if (settled) return;
             settled = true;
             clearTimeout(timeout);
+            applySubtitles(youtubeApiPlayer, subtitlesEnabled);
+            activePlayerSubtitles = subtitlesEnabled;
             enforceVideoRange();
             startVideoRangeGuard();
             resolve();
@@ -357,6 +381,9 @@
     pendingLessonClassName = "";
     studentHrClass = "";
     if (studentInfoError) studentInfoError.classList.add("hidden");
+    if (studentClassInput) studentClassInput.value = "";
+    if (studentNumberInput) studentNumberInput.value = "";
+    if (studentNameInput) studentNameInput.value = "";
     if (rosterSelectWrap) rosterSelectWrap.classList.add("hidden");
     if (rosterSelect) rosterSelect.innerHTML = '<option value="">— 名前を選択 —</option>';
 
