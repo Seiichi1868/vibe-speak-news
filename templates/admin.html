@@ -160,13 +160,11 @@
           <div class="min-w-[10rem] flex-1">
             <label class="mb-0.5 block text-[11px] font-medium text-slate-600" for="class-select">管理するクラス</label>
             <select id="class-select" class="compact-input w-full">
-              {% if not classes %}
-              <option value="">（クラス未作成）</option>
-              {% else %}
               {% for c in classes %}
-              <option value="{{ c.id }}" {% if c.id == active_class_id %}selected{% endif %}>{{ c.name }}</option>
+              <option value="{{ c.id }}" {% if c.id == active_class_id %}selected{% endif %}>
+                {{ c.name }}{% if c.is_sample %}（サンプル）{% endif %}
+              </option>
               {% endfor %}
-              {% endif %}
             </select>
           </div>
           <button type="button" id="reload-class-btn" class="compact-btn border border-teal-100 bg-white/80 text-teal-700">再読込</button>
@@ -227,7 +225,11 @@
             </button>
           </div>
           <p id="lesson-class-label" class="mt-0.5 text-[11px] text-slate-500">
-            {% if active_class %}{{ active_class.name }}{% else %}クラスを作成・選択してください{% endif %}
+            {% if active_class %}
+              {% if active_class.is_sample %}{{ active_class.name }}（サンプル表示・保存不可）{% else %}{{ active_class.name }}{% endif %}
+            {% else %}
+              クラスを作成・選択してください
+            {% endif %}
           </p>
         </div>
         <div class="flex shrink-0 flex-col items-stretch gap-1 sm:flex-row sm:items-center">
@@ -235,12 +237,12 @@
             placeholder="保存名">
           <button type="button" id="archive-btn"
             class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100"
-            {% if not active_class %}disabled{% endif %}>
+            {% if not active_class or active_class.is_sample %}disabled{% endif %}>
             アーカイブ
           </button>
           <button type="button" id="reset-lesson-btn"
             class="rounded-full border border-red-100 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50"
-            {% if not active_class %}disabled{% endif %}>
+            {% if not active_class or active_class.is_sample %}disabled{% endif %}>
             設定消去
           </button>
         </div>
@@ -318,7 +320,7 @@
         </label>
 
         <button type="submit" id="save-lesson-btn" class="compact-btn shrink-0 bg-emerald-600 hover:bg-emerald-500"
-          {% if not active_class %}disabled{% endif %}>
+          {% if not active_class or active_class.is_sample %}disabled{% endif %}>
           授業設定を保存
         </button>
         <p id="lesson-message" class="shrink-0 text-[11px] hidden"></p>
@@ -423,6 +425,7 @@
   window.ADMIN_ACTIVE_CLASS = {{ active_class|tojson if active_class else 'null' }};
   window.ADMIN_CLASSES = {{ classes|tojson }};
   window.CEFR_LEVELS = {{ cefr_levels|list|tojson }};
+  window.DEFAULT_SAMPLE_CLASS_ID = {{ default_sample_class_id|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/youtube-transcript.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>

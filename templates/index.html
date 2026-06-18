@@ -57,9 +57,14 @@
     <select id="class-picker-select" class="w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-inner outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100">
       <option value="">— 選択してください —</option>
       {% for c in classes %}
-      <option value="{{ c.id }}" {% if c.id == initial_class_id %}selected{% endif %}>{{ c.name }}</option>
+      <option value="{{ c.id }}" {% if c.id == initial_class_id %}selected{% endif %}>{{ c.name }}{% if c.is_sample %}（サンプル）{% endif %}</option>
       {% endfor %}
     </select>
+    {% if classes|length == 1 and classes[0].is_sample %}
+    <p class="mt-2 rounded-lg border border-sky-100 bg-sky-50/90 p-2.5 text-[11px] text-sky-900">
+      「デフォルトの設定」はサンプルです。実際の授業用には管理画面でクラスを作成してください。
+    </p>
+    {% endif %}
     {% else %}
     <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-900">
       クラスがまだ登録されていません。管理画面でクラスを作成し、授業設定を保存してください。

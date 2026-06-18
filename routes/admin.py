@@ -9,6 +9,7 @@ from services.cnn10_highlight import find_title_segment_in_transcript
 from services.network import get_public_base_url
 from services.storage import (
     DEFAULT_EVALUATION_CRITERIA,
+    DEFAULT_SAMPLE_CLASS_ID,
     archive_class_current,
     copy_class_archive,
     current_lesson_identity,
@@ -48,7 +49,7 @@ def _active_class_or_none():
 def cnn10_episodes():
     try:
         offset = int(request.args.get("offset") or 0)
-        limit = int(request.args.get("limit") or 10)
+        limit = int(request.args.get("limit") or 20)
         data = fetch_cnn10_episodes(offset=offset, limit=limit)
         return jsonify({"ok": True, **data})
     except Exception as exc:
@@ -117,6 +118,7 @@ def admin_index():
         end_time_display=seconds_to_display(int(current.get("end_seconds") or 0)),
         api_key_configured=api_key_configured,
         api_key_masked=mask_api_key(state.get("openai_api_key") or get_openai_api_key()),
+        default_sample_class_id=DEFAULT_SAMPLE_CLASS_ID,
     )
 
 

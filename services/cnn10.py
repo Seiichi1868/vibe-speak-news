@@ -310,9 +310,9 @@ def _ensure_episode_count(required: int) -> None:
         _CACHE["fetched_at"] = time.time()
 
 
-def fetch_cnn10_episodes(offset: int = 0, limit: int = 10) -> dict:
+def fetch_cnn10_episodes(offset: int = 0, limit: int = 20) -> dict:
     offset = max(0, int(offset or 0))
-    limit = max(1, min(int(limit or 10), 30))
+    limit = max(1, min(int(limit or 20), 30))
     required = offset + limit
 
     try:

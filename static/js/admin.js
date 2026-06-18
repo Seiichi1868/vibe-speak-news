@@ -61,6 +61,12 @@
   let scriptAutoManaged = false;
   let autoScriptTimer = null;
   let autoScriptRequestId = 0;
+  const CNN10_PAGE_SIZE = 20;
+  const SAMPLE_CLASS_ID = window.DEFAULT_SAMPLE_CLASS_ID || "__default_sample__";
+
+  function isSampleClass(classId) {
+    return String(classId || "").trim() === SAMPLE_CLASS_ID;
+  }
 
   function showMessage(el, text, isError) {
     if (!el) return;
@@ -571,7 +577,7 @@
     updateCnn10MoreButton();
 
     try {
-      const res = await fetch(`/admin/api/cnn10/episodes?offset=${cnn10NextOffset}&limit=10`);
+      const res = await fetch(`/admin/api/cnn10/episodes?offset=${cnn10NextOffset}&limit=${CNN10_PAGE_SIZE}`);
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "CNN10 の取得に失敗しました。");
 
@@ -644,15 +650,20 @@
     scriptAutoManaged = false;
     suppressAutoScriptFill = false;
     if (lessonClassId) lessonClassId.value = cls.id;
-    if (lessonClassLabel) lessonClassLabel.textContent = cls.name;
+    if (lessonClassLabel) {
+      lessonClassLabel.textContent = cls.is_sample
+        ? `${cls.name}（サンプル表示・保存不可）`
+        : cls.name;
+    }
     CEFR_LEVELS.forEach((lv) => {
       const el = document.getElementById(`class-criteria-${lv}`);
       if (el) el.value = (c.evaluation_criteria && c.evaluation_criteria[lv]) || "";
     });
-    if (archiveBtn) archiveBtn.disabled = false;
-    if (resetLessonBtn) resetLessonBtn.disabled = false;
+    const sample = cls.is_sample || isSampleClass(cls.id);
+    if (archiveBtn) archiveBtn.disabled = sample;
+    if (resetLessonBtn) resetLessonBtn.disabled = sample;
     const saveBtn = document.getElementById("save-lesson-btn");
-    if (saveBtn) saveBtn.disabled = false;
+    if (saveBtn) saveBtn.disabled = sample;
     renderArchiveList(cls);
   }
 
@@ -750,19 +761,12 @@
     if (classSelect) {
       const prev = classSelect.value;
       classSelect.innerHTML = "";
-      if (!data.classes.length) {
+      data.classes.forEach((c) => {
         const opt = document.createElement("option");
-        opt.value = "";
-        opt.textContent = "（クラス未作成）";
+        opt.value = c.id;
+        opt.textContent = c.is_sample ? `${c.name}（サンプル）` : c.name;
         classSelect.appendChild(opt);
-      } else {
-        data.classes.forEach((c) => {
-          const opt = document.createElement("option");
-          opt.value = c.id;
-          opt.textContent = c.name;
-          classSelect.appendChild(opt);
-        });
-      }
+      });
       const target = selectId || data.active_class_id || prev;
       if (target) classSelect.value = target;
     }

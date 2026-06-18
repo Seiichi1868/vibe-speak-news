@@ -47,6 +47,32 @@ DEFAULT_CLASS_CURRENT = {
     "subtitles_enabled": False,
 }
 
+DEFAULT_SAMPLE_CLASS_ID = "__default_sample__"
+DEFAULT_SAMPLE_CLASS_CURRENT = {
+    "source_url": "https://www.youtube.com/watch?v=xu1QlVWYhUc",
+    "video_id": "xu1QlVWYhUc",
+    "title": "A diplomatic breakthrough in the US and Israel's war with Iran? | June 18, 2026",
+    "start_seconds": 80,
+    "end_seconds": 220,
+    "script": (
+        "Good morning and welcome to CNN 10. I'm Coy Wire. Today we begin with news from the Middle East. "
+        "Diplomatic talks are underway as leaders work toward a possible breakthrough in a long-running conflict. "
+        "We'll explain what is happening, why it matters, and what could come next. "
+        "First, here is a quick look at the latest developments. "
+        "Officials from several countries met this week to discuss steps that could reduce tensions. "
+        "Both sides say they want peace, but many challenges remain. "
+        "Next, we'll break down the key issues and hear from experts about what students should watch for in the days ahead."
+    ),
+    "evaluation_criteria": {level: "" for level in CEFR_LEVELS},
+    "prep_timer_seconds": 60,
+    "record_timer_seconds": 60,
+    "timers_visible": True,
+    "subtitles_enabled": False,
+}
+SAMPLE_CLASS_MUTATION_ERROR = (
+    "「デフォルトの設定」はサンプル表示用です。保存するにはクラスを作成してください。"
+)
+
 DEFAULT_STATE = {
     "display_language": "ja",
     "ai_model": "gpt-4o-mini",
@@ -70,6 +96,31 @@ def _slug_id(name: str) -> str:
 
 def _empty_criteria() -> dict:
     return {level: "" for level in CEFR_LEVELS}
+
+
+def is_sample_class_id(class_id: str) -> bool:
+    return str(class_id or "").strip() == DEFAULT_SAMPLE_CLASS_ID
+
+
+def _has_user_classes(state: dict | None = None) -> bool:
+    state = state if state is not None else load_state()
+    return bool(state.get("classes"))
+
+
+def get_sample_class() -> dict:
+    return {
+        "id": DEFAULT_SAMPLE_CLASS_ID,
+        "name": "デフォルトの設定",
+        "created_at": "",
+        "current": deepcopy(DEFAULT_SAMPLE_CLASS_CURRENT),
+        "archive": [],
+        "is_sample": True,
+    }
+
+
+def _ensure_not_sample_class(class_id: str) -> None:
+    if is_sample_class_id(class_id):
+        raise ValueError(SAMPLE_CLASS_MUTATION_ERROR)
 
 
 def _coerce_nonnegative_int(value, default: int = 0) -> int:
@@ -295,29 +346,41 @@ def update_settings(**kwargs) -> dict:
 
 def list_classes() -> list[dict]:
     state = load_state()
-    return [
+    user_classes = [
         {"id": c["id"], "name": c["name"], "created_at": c.get("created_at", "")}
         for c in state.get("classes", {}).values()
     ]
+    if user_classes:
+        return user_classes
+    sample = get_sample_class()
+    return [{"id": sample["id"], "name": sample["name"], "created_at": sample["created_at"], "is_sample": True}]
 
 
 def get_class(class_id: str) -> dict | None:
+    if is_sample_class_id(class_id):
+        if not _has_user_classes():
+            return get_sample_class()
+        return None
     state = load_state()
     return state.get("classes", {}).get(class_id)
 
 
 def get_active_class_id() -> str:
     state = load_state()
-    active = state.get("active_class_id") or ""
-    if active and active in state.get("classes", {}):
-        return active
     classes = state.get("classes") or {}
-    if classes:
-        return next(iter(classes))
-    return ""
+    if not classes:
+        return DEFAULT_SAMPLE_CLASS_ID
+    active = state.get("active_class_id") or ""
+    if active and active in classes:
+        return active
+    return next(iter(classes))
 
 
 def set_active_class(class_id: str) -> dict:
+    if is_sample_class_id(class_id):
+        if _has_user_classes():
+            raise ValueError("指定されたクラスが見つかりません。")
+        return load_state()
     state = load_state()
     if class_id not in state.get("classes", {}):
         raise ValueError("指定されたクラスが見つかりません。")
@@ -346,6 +409,7 @@ def create_class(name: str) -> dict:
 
 
 def update_class_current(class_id: str, current_data: dict) -> dict:
+    _ensure_not_sample_class(class_id)
     state = load_state()
     if class_id not in state.get("classes", {}):
         raise ValueError("指定されたクラスが見つかりません。")
@@ -357,6 +421,7 @@ def update_class_current(class_id: str, current_data: dict) -> dict:
 
 
 def archive_class_current(class_id: str, title: str = "") -> dict:
+    _ensure_not_sample_class(class_id)
     state = load_state()
     if class_id not in state.get("classes", {}):
         raise ValueError("指定されたクラスが見つかりません。")
@@ -386,6 +451,7 @@ def archive_class_current(class_id: str, title: str = "") -> dict:
 
 
 def reset_class_current(class_id: str) -> dict:
+    _ensure_not_sample_class(class_id)
     state = load_state()
     if class_id not in state.get("classes", {}):
         raise ValueError("指定されたクラスが見つかりません。")
@@ -397,6 +463,7 @@ def reset_class_current(class_id: str) -> dict:
 
 
 def restore_class_archive(class_id: str, archive_index: int) -> dict:
+    _ensure_not_sample_class(class_id)
     state = load_state()
     if class_id not in state.get("classes", {}):
         raise ValueError("指定されたクラスが見つかりません。")
@@ -415,6 +482,7 @@ def restore_class_archive(class_id: str, archive_index: int) -> dict:
 
 
 def delete_class_archive(class_id: str, archive_index: int) -> dict:
+    _ensure_not_sample_class(class_id)
     state = load_state()
     if class_id not in state.get("classes", {}):
         raise ValueError("指定されたクラスが見つかりません。")
@@ -431,6 +499,8 @@ def delete_class_archive(class_id: str, archive_index: int) -> dict:
 
 
 def copy_class_archive(class_id: str, archive_index: int, target_class_id: str) -> tuple[dict, dict]:
+    _ensure_not_sample_class(class_id)
+    _ensure_not_sample_class(target_class_id)
     state = load_state()
     classes = state.get("classes", {})
     if class_id not in classes:
@@ -498,6 +568,7 @@ def import_roster_from_excel(class_id: str, file_bytes: bytes) -> list[dict]:
     Excelの1列目=HRクラス、2列目=出席番号、3列目=名前 として読み込む（1行目はヘッダーとして無視）。
     返り値: [{hr_class, number, name}, ...]
     """
+    _ensure_not_sample_class(class_id)
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
     ws = wb.active
     students = []
