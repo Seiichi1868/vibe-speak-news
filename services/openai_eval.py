@@ -259,10 +259,43 @@ def _apply_word_count_adjustment(scores: dict, level: str, student_summary: str)
     return adjusted
 
 
+_OFF_TOPIC_PATTERN = re.compile(
+    r"(内容がない|関連がない|関係がない|無関係|かけ離れ|別の動画|別のトピック|指定された動画ではない)"
+)
+
+
+def _apply_off_topic_adjustment(scores: dict) -> dict:
+    """Zero out organization and speaking_summary, cap language at 2, when content is off-topic."""
+    if not isinstance(scores, dict):
+        return scores
+    content = scores.get("content") or {}
+    try:
+        content_score = int(content.get("score", 0))
+    except (TypeError, ValueError):
+        return scores
+    comment = str(content.get("comment") or "")
+    if content_score > 0 or not _OFF_TOPIC_PATTERN.search(comment):
+        return scores
+    adjusted = dict(scores)
+    for key in ("organization", "speaking_summary"):
+        item = adjusted.get(key)
+        if isinstance(item, dict):
+            adjusted[key] = {**item, "score": 0}
+    lang = adjusted.get("language")
+    if isinstance(lang, dict):
+        try:
+            lang_score = int(lang.get("score", 0))
+        except (TypeError, ValueError):
+            lang_score = 0
+        adjusted["language"] = {**lang, "score": min(lang_score, 2)}
+    return adjusted
+
+
 def _score_text_from_data(data: dict, level: str, student_summary: str) -> str:
     if not isinstance(data, dict):
         return ""
     scores = _apply_word_count_adjustment(data.get("scores") or {}, level, student_summary)
+    scores = _apply_off_topic_adjustment(scores)
     return _format_scores(scores, level)
 
 
@@ -351,7 +384,7 @@ def evaluation_system_prompt(level: str, model: str, rubric_override: str | None
 - 発話語数が目安の70%未満なら全4項目から追加で1点減点、40%以下なら全4項目から追加で2点減点する。ただし無回答・無関係でない限り最低1点は残す
 - 語数不足で点を下げる場合は、「要約の内容が少ないために追加で減点されています。」のように、学習者に理由が分かる文を該当項目のコメントに入れる
 - 目安語数を満たしていても、参照スクリプトの事実が少なければ内容理解点は上げすぎない。逆に多少短くても、重要事実が複数正確なら理由付きで評価する
-- 生徒の提出内容が参照スクリプトとかけ離れている、関係がない、または実質的な内容がない場合は、内容理解・要点を0/5にする。その場合、content_check と model_summary_en は必ず「{NO_RELEVANT_CONTENT_MESSAGE}」だけにする。再受験時のヒントになる要点、キーワード、改良例、模範文は出さない
+- 生徒の提出内容が参照スクリプトとかけ離れている、関係がない、別の動画・別のトピックについて話している、または実質的な内容がない場合は、内容理解・要点・構成・流れ・即興スピーキング要約をすべて0/5にする。英語表現（language）のみ最高2/5まで評価してよい。その場合、content_check と model_summary_en は必ず「{NO_RELEVANT_CONTENT_MESSAGE}」だけにする。再受験時のヒントになる要点、キーワード、改良例、模範文は出さない。openingには「指定された動画ではなく別のトピックの内容が含まれているため、正確に評価できません」と明記する
 
 【opening（総評）だけの特別ルール — 最重要】
 - 誉めすぎ禁止。「完璧」「素晴らしい」「本当にえらい」などの過剰な称賛は使わない
