@@ -129,6 +129,23 @@ def _opening_style_for_model(model: str, level: str) -> str:
     return template.replace("{level}", level)
 
 
+_REFERENCE_SCRIPT_USER_FACING_REPLACEMENTS = (
+    (re.compile(r"参照スクリプトのニュース内容"), "このニュース動画の内容"),
+    (re.compile(r"参照スクリプトの内容"), "このニュース動画の内容"),
+    (re.compile(r"参照スクリプト"), "このニュース動画"),
+    (re.compile(r"指定された動画"), "このニュース動画"),
+)
+
+
+def _sanitize_reference_script_wording(text: str) -> str:
+    """生徒向けフィードバックから内部用語「参照スクリプト」を除去する。"""
+    if not text:
+        return text
+    for pattern, replacement in _REFERENCE_SCRIPT_USER_FACING_REPLACEMENTS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def _drop_redundant_anata(text: str) -> str:
     """毎文の「あなたは」「あなたの〜は」を除き、自然な直接語りかけにする。"""
     if not text:
@@ -351,7 +368,7 @@ def _format_scores(scores: dict, level: str = "") -> str:
         )
         line = f"- {label}: {score}/{max_score}"
         if comment:
-            line += f" — {comment}"
+            line += f" — {_sanitize_reference_script_wording(comment)}"
         lines.append(line)
 
     if not lines:
@@ -384,7 +401,8 @@ def evaluation_system_prompt(level: str, model: str, rubric_override: str | None
 - 発話語数が目安の70%未満なら全4項目から追加で1点減点、40%以下なら全4項目から追加で2点減点する。ただし無回答・無関係でない限り最低1点は残す
 - 語数不足で点を下げる場合は、「要約の内容が少ないために追加で減点されています。」のように、学習者に理由が分かる文を該当項目のコメントに入れる
 - 目安語数を満たしていても、参照スクリプトの事実が少なければ内容理解点は上げすぎない。逆に多少短くても、重要事実が複数正確なら理由付きで評価する
-- 生徒の提出内容が参照スクリプトとかけ離れている、関係がない、別の動画・別のトピックについて話している、または実質的な内容がない場合は、内容理解・要点・構成・流れ・即興スピーキング要約をすべて0/5にする。英語表現（language）のみ最高2/5まで評価してよい。その場合、content_check と model_summary_en は必ず「{NO_RELEVANT_CONTENT_MESSAGE}」だけにする。再受験時のヒントになる要点、キーワード、改良例、模範文は出さない。openingには「指定された動画ではなく別のトピックの内容が含まれているため、正確に評価できません」と明記する
+- 生徒の提出内容が参照スクリプトとかけ離れている、関係がない、別の動画・別のトピックについて話している、または実質的な内容がない場合は、内容理解・要点・構成・流れ・即興スピーキング要約をすべて0/5にする。英語表現（language）のみ最高2/5まで評価してよい。その場合、content_check と model_summary_en は必ず「{NO_RELEVANT_CONTENT_MESSAGE}」だけにする。再受験時のヒントになる要点、キーワード、改良例、模範文は出さない。openingには「このニュース動画の内容ではなく、別のトピックの内容が含まれているため、正確に評価できません」と明記する
+- 生徒向けの opening・scores の comment・content_check・grammar_advice・model_summary_en では「参照スクリプト」「スクリプト」という語を使わない。動画の内容に言及するときは「このニュース動画」「今日のニュース動画」を使う（例: 「参照スクリプトのニュース内容ではなく〜」ではなく「このニュース動画の内容ではなく〜」）
 
 【opening（総評）だけの特別ルール — 最重要】
 - 誉めすぎ禁止。「完璧」「素晴らしい」「本当にえらい」などの過剰な称賛は使わない
@@ -464,19 +482,27 @@ CEFR {level.upper()} の目安語数: 約{target}語
 
 
 def format_evaluation_response(data: dict, level: str, student_summary: str) -> str:
-    opening = _drop_redundant_anata(
-        _trim_opening_fluff(str(data.get("opening") or "").strip())
+    opening = _sanitize_reference_script_wording(
+        _drop_redundant_anata(
+            _trim_opening_fluff(str(data.get("opening") or "").strip())
+        )
     )
     opening = _promote_a1_mindset(opening, level)
-    content_check = _promote_a1_mindset(
-        _drop_redundant_anata(str(data.get("content_check") or "").strip()),
-        level,
+    content_check = _sanitize_reference_script_wording(
+        _promote_a1_mindset(
+            _drop_redundant_anata(str(data.get("content_check") or "").strip()),
+            level,
+        )
     )
-    grammar_advice = _promote_a1_mindset(
-        _drop_redundant_anata(str(data.get("grammar_advice") or "").strip()),
-        level,
+    grammar_advice = _sanitize_reference_script_wording(
+        _promote_a1_mindset(
+            _drop_redundant_anata(str(data.get("grammar_advice") or "").strip()),
+            level,
+        )
     )
-    model_summary_en = _promote_a1_mindset(str(data.get("model_summary_en") or "").strip(), level)
+    model_summary_en = _sanitize_reference_script_wording(
+        _promote_a1_mindset(str(data.get("model_summary_en") or "").strip(), level)
+    )
     score_text = _score_text_from_data(data, level, student_summary)
     if _has_no_relevant_content(data):
         content_check = NO_RELEVANT_CONTENT_MESSAGE
