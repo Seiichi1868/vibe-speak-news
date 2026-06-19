@@ -1,5 +1,6 @@
 (function () {
   const STORAGE_KEY = "vibe_speak_selected_class_id";
+  const STORAGE_STUDENT_KEY = "vibe_speak_student_info";
 
   const openingOverlay = document.getElementById("opening-overlay");
   const classPickerOverlay = document.getElementById("class-picker-overlay");
@@ -376,14 +377,61 @@
     studentInfoOverlay.classList.remove("flex");
   }
 
+  function getStudentInfoStore() {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_STUDENT_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function getSavedStudentInfo(classId) {
+    const entry = getStudentInfoStore()[classId];
+    if (!entry || (!entry.number && !entry.name)) return null;
+    return entry;
+  }
+
+  function saveStudentInfo(classId, info) {
+    const store = getStudentInfoStore();
+    store[classId] = {
+      hr_class: info.hrClass || "",
+      number: info.number || "",
+      name: info.name || "",
+    };
+    sessionStorage.setItem(STORAGE_STUDENT_KEY, JSON.stringify(store));
+  }
+
+  function applySavedStudentInfo(info) {
+    studentHrClass = info.hr_class || "";
+    studentNumber = info.number || "";
+    studentName = info.name || "";
+    if (studentDisplayName) {
+      studentDisplayName.textContent = `${studentHrClass}　${studentNumber}　${studentName}`.trim();
+    }
+  }
+
   async function prepareStudentInfo(classId) {
     pendingClassId = classId;
     pendingLessonClassName = "";
-    studentHrClass = "";
+
+    const saved = getSavedStudentInfo(classId);
+    if (saved) {
+      applySavedStudentInfo(saved);
+      try {
+        await loadClassSession(classId);
+        hideStudentInfoOverlay();
+        return;
+      } catch (_) {
+        /* fall through to registration form */
+      }
+    }
+
+    studentHrClass = saved ? saved.hr_class || "" : "";
     if (studentInfoError) studentInfoError.classList.add("hidden");
-    if (studentClassInput) studentClassInput.value = "";
-    if (studentNumberInput) studentNumberInput.value = "";
-    if (studentNameInput) studentNameInput.value = "";
+    if (studentClassInput) studentClassInput.value = saved ? saved.hr_class || "" : "";
+    if (studentNumberInput) studentNumberInput.value = saved ? saved.number || "" : "";
+    if (studentNameInput) studentNameInput.value = saved ? saved.name || "" : "";
     if (rosterSelectWrap) rosterSelectWrap.classList.add("hidden");
     if (rosterSelect) rosterSelect.innerHTML = '<option value="">— 名前を選択 —</option>';
 
@@ -670,6 +718,11 @@
       studentNumber = number;
       studentName = name;
       studentHrClass = studentClassInput ? studentClassInput.value.trim() : "";
+      saveStudentInfo(pendingClassId, {
+        hrClass: studentHrClass,
+        number: studentNumber,
+        name: studentName,
+      });
       if (studentDisplayName) studentDisplayName.textContent = `${studentHrClass}　${number}　${name}`.trim();
       hideStudentInfoOverlay();
       try {
