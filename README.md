@@ -1,5 +1,8 @@
 # Vibe Speak News
 
+> **本番は統合プラットフォーム [`vibes-apps`](../vibes-apps/) の `news_app/`（https://vibes-app-auz1.onrender.com/news/）を使用します。**  
+> 本リポジトリはレガシー単体版です。新規開発は `vibes-apps` で行ってください。
+
 動画要約・スピーチ評価アプリのプロトタイプ（Flask + Tailwind CSS）。
 
 ## 機能

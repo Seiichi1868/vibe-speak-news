@@ -10,8 +10,10 @@ alwaysApply: true
 1. 変更内容をコミットする（コミットメッセージは変更の意図を簡潔に）
 2. `git push` でリモートへ反映する
 
-本番は `ondoku-hantei-app`（https://vibes-app-auz1.onrender.com）にデプロイされる。
-Vibe Speak News のスタンドアロン版（`vibe-speak-news`）も併せて同期・push する。
+**本番は `vibes-apps` リポジトリ**（https://vibes-app-auz1.onrender.com の `news_app/`）が正。
+本リポジトリ（`vibe-speak-news`）はレガシー単体版。ユーザーが明示しない限り、こちらへの修正・push は行わない。
+
+News の新規開発は `../vibes-apps/news_app/` で行う。
 
 例外:
 - ユーザーが「コミットしない」「push しない」と明示した場合
