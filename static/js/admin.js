@@ -1315,13 +1315,8 @@
       const tab = btn.dataset.tab;
       document.querySelectorAll(".tab-btn").forEach((b) => {
         const active = b === btn;
-        b.classList.toggle("bg-white/70", active);
-        b.classList.toggle("border", active);
-        b.classList.toggle("border-teal-100", active);
-        b.classList.toggle("border-b-0", active);
-        b.classList.toggle("-mb-px", active);
-        b.classList.toggle("text-teal-700", active);
-        b.classList.toggle("text-slate-500", !active);
+        b.classList.toggle("tab-btn--active", active);
+        b.classList.toggle("tab-btn--inactive", !active);
       });
       if (tabLesson) tabLesson.classList.toggle("hidden", tab !== "lesson");
       if (tabResults) tabResults.classList.toggle("hidden", tab !== "results");

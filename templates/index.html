@@ -171,9 +171,9 @@
           <p class="text-[10px] font-medium uppercase tracking-wide text-slate-500">録音</p>
           <p id="record-timer" class="text-lg font-bold tabular-nums leading-tight text-emerald-600">01:00</p>
         </div>
-        <div class="glass-inset rounded-lg px-1.5 py-1">
+        <div class="glass-inset flex flex-col items-center justify-center rounded-lg px-1 py-0.5 text-center leading-none">
           <p class="text-[10px] font-medium text-slate-500">レベル</p>
-          <p id="level-display" class="mt-0.5 text-sm font-semibold text-slate-800">{{ initial_level }}</p>
+          <p id="level-display" class="text-sm font-semibold text-slate-800">{{ initial_level }}</p>
           <input type="hidden" id="level-select" value="{{ initial_level }}">
         </div>
         <div class="flex flex-col justify-center gap-0.5">
