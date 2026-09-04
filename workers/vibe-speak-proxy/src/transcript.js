@@ -109,6 +109,93 @@ async function fetchViaInnertube(videoId, languages) {
   return null;
 }
 
+function extractJsonObject(html, marker) {
+  const startToken = html.indexOf(marker);
+  if (startToken < 0) return null;
+  const jsonStart = html.indexOf("{", startToken);
+  if (jsonStart < 0) return null;
+  let depth = 0;
+  for (let i = jsonStart; i < html.length; i += 1) {
+    if (html[i] === "{") depth += 1;
+    else if (html[i] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(html.slice(jsonStart, i + 1));
+        } catch (_err) {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function tracksFromPlayerResponse(data) {
+  const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+  return Array.isArray(tracks) && tracks.length ? tracks : null;
+}
+
+async function fetchViaWatchPage(videoId, languages) {
+  const headers = {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+  };
+
+  try {
+    const pbj = await fetch(`https://www.youtube.com/watch?v=${videoId}&pbj=1&hl=en`, {
+      headers: {
+        ...headers,
+        "X-YouTube-Client-Name": "1",
+        "X-YouTube-Client-Version": "2.20260903.01.00",
+      },
+    });
+    if (pbj.ok) {
+      const payload = await pbj.json().catch(() => null);
+      const items = Array.isArray(payload) ? payload : [payload];
+      for (const item of items) {
+        let player = item?.playerResponse || item?.player_response;
+        if (typeof player === "string") {
+          try {
+            player = JSON.parse(player);
+          } catch (_err) {
+            player = null;
+          }
+        }
+        const tracks = tracksFromPlayerResponse(player) || tracksFromPlayerResponse(item);
+        const captionTracks = publicCaptionTracks(tracks);
+        if (captionTracks.length) {
+          const selected = selectCaptionTrack(captionTracks, languages);
+          return {
+            language_code: selected?.languageCode || languages[0] || "en",
+            is_generated: selected?.kind === "asr",
+            snippets: [],
+            caption_tracks: captionTracks,
+          };
+        }
+      }
+    }
+  } catch (_err) {
+    // fall through to HTML
+  }
+
+  const page = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, { headers });
+  if (!page.ok) return null;
+  const html = await page.text();
+  if (html.includes("g-recaptcha")) return null;
+  const player = extractJsonObject(html, "ytInitialPlayerResponse");
+  const captionTracks = publicCaptionTracks(tracksFromPlayerResponse(player));
+  if (!captionTracks.length) return null;
+  const selected = selectCaptionTrack(captionTracks, languages);
+  return {
+    language_code: selected?.languageCode || languages[0] || "en",
+    is_generated: selected?.kind === "asr",
+    snippets: [],
+    caption_tracks: captionTracks,
+  };
+}
+
 function isRetryableFetchError(err) {
   if (err instanceof RetryableFetchError) return true;
   const message = String(err?.message || err || "").toLowerCase();
@@ -116,8 +203,10 @@ function isRetryableFetchError(err) {
 }
 
 async function fetchTranscriptOnce(videoId, languages = DEFAULT_LANGUAGES) {
-  const result = await fetchViaInnertube(videoId, languages);
-  if (result) return result;
+  const innertube = await fetchViaInnertube(videoId, languages);
+  if (innertube) return innertube;
+  const watchPage = await fetchViaWatchPage(videoId, languages);
+  if (watchPage) return watchPage;
   throw new Error("日本語・英語の字幕が見つかりませんでした。");
 }
 
