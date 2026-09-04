@@ -1,15 +1,6 @@
-import {
-  fetchTranscript as fetchTranscriptLegacy,
-  YoutubeTranscriptDisabledError,
-  YoutubeTranscriptNotAvailableError,
-  YoutubeTranscriptNotAvailableLanguageError,
-  YoutubeTranscriptTooManyRequestError,
-  YoutubeTranscriptVideoUnavailableError,
-} from "youtube-transcript";
-
 const DEFAULT_LANGUAGES = ["en", "ja"];
-const MAX_ATTEMPTS = 3;
-const RETRY_BASE_DELAY_MS = 1500;
+const MAX_ATTEMPTS = 1;
+const RETRY_BASE_DELAY_MS = 400;
 
 /**
  * InnerTube (YouTube 内部 API) を「アプリ」のクライアントとして直接叩き、
@@ -162,7 +153,7 @@ async function fetchViaInnertube(videoId, languages) {
     try {
       tracks = await fetchCaptionTracksViaInnertube(videoId, client);
     } catch (err) {
-      if (err instanceof RetryableFetchError) throw err;
+      if (!(err instanceof RetryableFetchError)) throw err;
       tracks = null;
     }
     if (!tracks) continue;
@@ -170,7 +161,13 @@ async function fetchViaInnertube(videoId, languages) {
     const track = selectCaptionTrack(tracks, languages);
     if (!track?.baseUrl) continue;
 
-    const snippets = await fetchTimedTextBody(track.baseUrl);
+    let snippets = [];
+    try {
+      snippets = await fetchTimedTextBody(track.baseUrl);
+    } catch (err) {
+      if (!(err instanceof RetryableFetchError)) throw err;
+      continue;
+    }
     if (snippets.length) {
       return {
         language_code: track.languageCode || languages[0] || "en",
@@ -184,120 +181,14 @@ async function fetchViaInnertube(videoId, languages) {
 
 function isRetryableFetchError(err) {
   if (err instanceof RetryableFetchError) return true;
-  if (err instanceof YoutubeTranscriptTooManyRequestError) return true;
   const message = String(err?.message || err || "").toLowerCase();
   return message.includes("429") || message.includes("rate limit") || message.includes("too many");
 }
 
-function isSoftCaptionError(err) {
-  return (
-    err instanceof YoutubeTranscriptDisabledError ||
-    err instanceof YoutubeTranscriptNotAvailableError ||
-    err instanceof YoutubeTranscriptNotAvailableLanguageError
-  );
-}
-
-function mapLibraryError(err) {
-  if (isRetryableFetchError(err)) {
-    return new Error("YouTube へのリクエストが制限されています。しばらく待ってから再試行してください。");
-  }
-  if (err instanceof YoutubeTranscriptVideoUnavailableError) {
-    return new Error("動画が見つからないか、再生できません。");
-  }
-  if (isSoftCaptionError(err)) {
-    return new Error("日本語・英語の字幕が見つかりませんでした。");
-  }
-  if (err instanceof Error) return err;
-  return new Error(String(err || "字幕の取得に失敗しました。"));
-}
-
-function usesMillisecondTiming(items) {
-  return items.some((item) => {
-    const duration = Number(item.duration);
-    return Number.isInteger(duration) && duration > 30;
-  });
-}
-
-export function mapTranscriptItems(items) {
-  const ms = usesMillisecondTiming(items);
-  return items
-    .map((item) => {
-      const offset = Number(item.offset);
-      const duration = Number(item.duration);
-      const start = ms ? offset / 1000 : offset;
-      const dur = ms ? duration / 1000 : duration;
-      return {
-        start: roundSec(start),
-        duration: roundSec(Math.max(dur, 0.1)),
-        text: String(item.text || "").trim(),
-      };
-    })
-    .filter((snippet) => snippet.text);
-}
-
-/**
- * 最終手段として youtube-transcript パッケージ（InnerTube(ANDROID) → HTML スクレイピング）
- * を使う。InnerTube 直接呼び出しがすべて失敗した場合のみ到達する経路。
- */
-async function fetchViaLegacyLibrary(videoId, languages) {
-  let lastSoftError = null;
-  let sawRateLimit = false;
-
-  for (const lang of languages) {
-    try {
-      const items = await fetchTranscriptLegacy(videoId, { lang });
-      const snippets = mapTranscriptItems(items);
-      if (snippets.length) {
-        return { language_code: lang, is_generated: false, snippets };
-      }
-    } catch (err) {
-      if (isSoftCaptionError(err)) {
-        lastSoftError = err;
-        continue;
-      }
-      if (isRetryableFetchError(err)) {
-        sawRateLimit = true;
-        continue;
-      }
-      throw mapLibraryError(err);
-    }
-  }
-
-  try {
-    const items = await fetchTranscriptLegacy(videoId, {});
-    const snippets = mapTranscriptItems(items);
-    if (!snippets.length) {
-      throw new Error("字幕データを解析できませんでした。");
-    }
-    return {
-      language_code: items[0]?.lang || languages.find((lang) => lang === "en") || "en",
-      is_generated: true,
-      snippets,
-    };
-  } catch (err) {
-    if (sawRateLimit || isRetryableFetchError(err)) {
-      throw mapLibraryError(err);
-    }
-    if (isSoftCaptionError(err) || lastSoftError) {
-      throw mapLibraryError(lastSoftError || err);
-    }
-    throw mapLibraryError(err);
-  }
-}
-
 async function fetchTranscriptOnce(videoId, languages = DEFAULT_LANGUAGES) {
-  try {
-    const result = await fetchViaInnertube(videoId, languages);
-    if (result) return result;
-  } catch (err) {
-    // InnerTube 経路がレート制限された場合も、レガシー経路（別の User-Agent /
-    // リクエスト形状）で成功する可能性があるため、ここでは投げずに続行する。
-    if (!(err instanceof RetryableFetchError)) {
-      throw mapLibraryError(err);
-    }
-  }
-
-  return fetchViaLegacyLibrary(videoId, languages);
+  const result = await fetchViaInnertube(videoId, languages);
+  if (result) return result;
+  throw new Error("日本語・英語の字幕が見つかりませんでした。");
 }
 
 export async function fetchNormalizedTranscript(videoId, languages = DEFAULT_LANGUAGES) {
