@@ -103,7 +103,10 @@ export default {
       }
 
       const transcript = await fetchNormalizedTranscript(videoId);
-      return writeCachedTranscript(videoId, transcript);
+      if (Array.isArray(transcript?.snippets) && transcript.snippets.length) {
+        return writeCachedTranscript(videoId, transcript);
+      }
+      return jsonResponse(transcript, 200, { "Cache-Control": "no-store" });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err || "字幕の取得に失敗しました。");
       return errorResponse(message, errorStatus(message));

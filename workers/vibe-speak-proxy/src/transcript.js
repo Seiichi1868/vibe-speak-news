@@ -24,69 +24,10 @@ const INNERTUBE_CLIENTS = [
   },
 ];
 
-const TIMEDTEXT_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
-
 class RetryableFetchError extends Error {}
-
-function roundSec(value) {
-  return Math.round(Number(value) * 1000) / 1000;
-}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function decodeEntities(text) {
-  return String(text || "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
-}
-
-// srv3 形式 (<p t="ms" d="ms">…</p>) と classic 形式 (<text start="s" dur="s">) の両方に対応。
-function parseTimedTextXml(xml) {
-  const results = [];
-  const pRegex = /<p\s+t="(\d+)"\s+d="(\d+)"[^>]*>([\s\S]*?)<\/p>/g;
-  let match;
-  while ((match = pRegex.exec(xml)) !== null) {
-    const startMs = parseInt(match[1], 10);
-    const durMs = parseInt(match[2], 10);
-    const inner = match[3];
-    let text = "";
-    const sRegex = /<s[^>]*>([^<]*)<\/s>/g;
-    let sMatch;
-    while ((sMatch = sRegex.exec(inner)) !== null) {
-      text += sMatch[1];
-    }
-    if (!text) text = inner.replace(/<[^>]+>/g, "");
-    text = decodeEntities(text).trim();
-    if (text) {
-      results.push({
-        start: roundSec(startMs / 1000),
-        duration: roundSec(Math.max(durMs / 1000, 0.1)),
-        text,
-      });
-    }
-  }
-  if (results.length) return results;
-
-  const classicRegex = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
-  while ((match = classicRegex.exec(xml)) !== null) {
-    const text = decodeEntities(match[3]).trim();
-    if (!text) continue;
-    results.push({
-      start: roundSec(parseFloat(match[1])),
-      duration: roundSec(Math.max(parseFloat(match[2]), 0.1)),
-      text,
-    });
-  }
-  return results;
 }
 
 function langMatches(candidate, preferred) {
@@ -129,24 +70,20 @@ async function fetchCaptionTracksViaInnertube(videoId, client) {
   return Array.isArray(tracks) && tracks.length ? tracks : null;
 }
 
-async function fetchTimedTextBody(baseUrl) {
-  const response = await fetch(baseUrl, {
-    headers: { "User-Agent": TIMEDTEXT_USER_AGENT, "Accept-Language": "en-US,en;q=0.9" },
-  });
-  if (response.status === 429) {
-    throw new RetryableFetchError("timedtext rate limited");
-  }
-  if (!response.ok) return [];
-  const body = await response.text();
-  return parseTimedTextXml(body);
+/**
+ * InnerTube では字幕トラック URL だけを返す。本文（timedtext）はデータセンター IP
+ * から空になりやすいので、ブラウザ側で取得する。
+ */
+function publicCaptionTracks(tracks) {
+  return (tracks || [])
+    .filter((track) => track?.baseUrl)
+    .map((track) => ({
+      languageCode: track.languageCode || "",
+      kind: track.kind || "",
+      baseUrl: track.baseUrl,
+    }));
 }
 
-/**
- * InnerTube API（アプリクライアント）経由で字幕トラック一覧を取得し、本文を取得する。
- * HTML スクレイピングを行わないため、reCAPTCHA ブロックの主要因を回避できる。
- * 複数クライアントを順に試すことで、片方がブロック／要求バージョン不一致でも
- * もう片方で継続できるようにしている。
- */
 async function fetchViaInnertube(videoId, languages) {
   for (const client of INNERTUBE_CLIENTS) {
     let tracks = null;
@@ -156,25 +93,18 @@ async function fetchViaInnertube(videoId, languages) {
       if (!(err instanceof RetryableFetchError)) throw err;
       tracks = null;
     }
-    if (!tracks) continue;
+    if (!tracks?.length) continue;
 
-    const track = selectCaptionTrack(tracks, languages);
-    if (!track?.baseUrl) continue;
+    const captionTracks = publicCaptionTracks(tracks);
+    if (!captionTracks.length) continue;
 
-    let snippets = [];
-    try {
-      snippets = await fetchTimedTextBody(track.baseUrl);
-    } catch (err) {
-      if (!(err instanceof RetryableFetchError)) throw err;
-      continue;
-    }
-    if (snippets.length) {
-      return {
-        language_code: track.languageCode || languages[0] || "en",
-        is_generated: track.kind === "asr",
-        snippets,
-      };
-    }
+    const selected = selectCaptionTrack(captionTracks, languages);
+    return {
+      language_code: selected?.languageCode || languages[0] || "en",
+      is_generated: selected?.kind === "asr",
+      snippets: [],
+      caption_tracks: captionTracks,
+    };
   }
   return null;
 }
