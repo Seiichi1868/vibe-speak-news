@@ -37,7 +37,10 @@ function errorResponse(message, status = 502) {
 
 function errorStatus(message) {
   const lower = String(message || "").toLowerCase();
-  if (lower.includes("見つから") || lower.includes("unavailable") || lower.includes("not found")) {
+  // 「字幕が見つからない」は YouTube 側の一時的なブロックでも出るメッセージなので
+  // 404（クライアント側で再試行しない）にはせず、再試行可能な 502 のままにする。
+  // 本当に動画が存在しない/非公開の場合だけ 404 として扱う。
+  if (lower.includes("unavailable") || lower.includes("video not found") || lower.includes("private")) {
     return 404;
   }
   if (lower.includes("制限") || lower.includes("429") || lower.includes("rate limit")) {
