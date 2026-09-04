@@ -9,7 +9,7 @@
  * }
  */
 
-import { fetchNormalizedTranscript } from "./transcript.js";
+import { fetchNormalizedTranscript, fetchTimedTextFromUrl } from "./transcript.js";
 
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 // 字幕は動画公開後まず変わらないため、キャッシュを長め（3日）にして
@@ -84,6 +84,21 @@ export default {
     }
 
     const url = new URL(request.url);
+    const timedTextUrl = String(url.searchParams.get("timedtext") || "").trim();
+    if (timedTextUrl) {
+      try {
+        const parsed = new URL(timedTextUrl);
+        if (parsed.protocol !== "https:" || !parsed.hostname.endsWith("youtube.com") || !parsed.pathname.includes("timedtext")) {
+          return errorResponse("timedtext URL が不正です。", 400);
+        }
+        const transcript = await fetchTimedTextFromUrl(timedTextUrl);
+        return jsonResponse(transcript, 200, { "Cache-Control": "no-store" });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err || "字幕の取得に失敗しました。");
+        return errorResponse(message, errorStatus(message));
+      }
+    }
+
     const videoId = String(url.searchParams.get("id") || "").trim();
 
     if (!videoId) {
