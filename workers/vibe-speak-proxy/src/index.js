@@ -12,8 +12,6 @@
 import { fetchNormalizedTranscript, fetchTimedTextFromUrl } from "./transcript.js";
 
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
-// 字幕は動画公開後まず変わらないため、キャッシュを長め（3日）にして
-// YouTube への再アクセス（＝レート制限に引っかかるリスク）を減らす。
 const CACHE_MAX_AGE_SEC = 259200;
 
 const CORS_HEADERS = {
@@ -52,29 +50,44 @@ function cacheKeyForVideo(videoId) {
   return new Request(`https://vibe-speak-proxy.cache/transcript?id=${encodeURIComponent(videoId)}`);
 }
 
-async function readCachedTranscript(videoId) {
-  const cache = caches.default;
-  const cached = await cache.match(cacheKeyForVideo(videoId));
-  if (!cached) return null;
-
-  const body = await cached.json();
-  if (body?.ok === false || !Array.isArray(body?.snippets) || !body.snippets.length) {
-    return null;
-  }
-  return body;
+function isUsableTranscript(body) {
+  return Boolean(body && Array.isArray(body.snippets) && body.snippets.length);
 }
 
-async function writeCachedTranscript(videoId, transcript) {
-  const cache = caches.default;
+async function readEdgeCache(videoId) {
+  const cached = await caches.default.match(cacheKeyForVideo(videoId));
+  if (!cached) return null;
+  const body = await cached.json();
+  return isUsableTranscript(body) ? body : null;
+}
+
+async function readKvCache(env, videoId) {
+  if (!env?.TRANSCRIPTS) return null;
+  try {
+    const body = await env.TRANSCRIPTS.get(videoId, "json");
+    return isUsableTranscript(body) ? body : null;
+  } catch (_err) {
+    return null;
+  }
+}
+
+async function writeCaches(env, ctx, videoId, transcript) {
   const response = jsonResponse(transcript, 200, {
     "Cache-Control": `public, max-age=${CACHE_MAX_AGE_SEC}`,
   });
-  await cache.put(cacheKeyForVideo(videoId), response.clone());
+  const writes = [caches.default.put(cacheKeyForVideo(videoId), response.clone())];
+  if (env?.TRANSCRIPTS) {
+    writes.push(
+      env.TRANSCRIPTS.put(videoId, JSON.stringify(transcript), { expirationTtl: CACHE_MAX_AGE_SEC })
+    );
+  }
+  if (ctx?.waitUntil) ctx.waitUntil(Promise.all(writes));
+  else await Promise.all(writes);
   return response;
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
@@ -109,17 +122,35 @@ export default {
     }
 
     try {
-      const cached = await readCachedTranscript(videoId);
-      if (cached) {
-        return jsonResponse(cached, 200, {
+      const edgeCached = await readEdgeCache(videoId);
+      if (edgeCached) {
+        if (env?.TRANSCRIPTS && ctx?.waitUntil) {
+          ctx.waitUntil(
+            env.TRANSCRIPTS.put(videoId, JSON.stringify(edgeCached), { expirationTtl: CACHE_MAX_AGE_SEC })
+          );
+        }
+        return jsonResponse(edgeCached, 200, {
           "Cache-Control": `public, max-age=${CACHE_MAX_AGE_SEC}`,
           "X-Transcript-Cache": "HIT",
         });
       }
 
+      const kvCached = await readKvCache(env, videoId);
+      if (kvCached) {
+        if (ctx?.waitUntil) {
+          ctx.waitUntil(caches.default.put(cacheKeyForVideo(videoId), jsonResponse(kvCached, 200, {
+            "Cache-Control": `public, max-age=${CACHE_MAX_AGE_SEC}`,
+          })));
+        }
+        return jsonResponse(kvCached, 200, {
+          "Cache-Control": `public, max-age=${CACHE_MAX_AGE_SEC}`,
+          "X-Transcript-Cache": "KV",
+        });
+      }
+
       const transcript = await fetchNormalizedTranscript(videoId);
       if (Array.isArray(transcript?.snippets) && transcript.snippets.length) {
-        return writeCachedTranscript(videoId, transcript);
+        return writeCaches(env, ctx, videoId, transcript);
       }
       return jsonResponse(transcript, 200, { "Cache-Control": "no-store" });
     } catch (err) {

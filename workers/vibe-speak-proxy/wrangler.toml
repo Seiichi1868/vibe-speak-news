@@ -11,5 +11,9 @@ workers_dev = true
 [observability]
 enabled = true
 
+[[kv_namespaces]]
+binding = "TRANSCRIPTS"
+id = "4b533b4753904dafbdb188e0980d294e"
+
 # Optional: pin account after `wrangler whoami`
 # account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
