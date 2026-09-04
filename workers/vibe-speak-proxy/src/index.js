@@ -12,7 +12,9 @@
 import { fetchNormalizedTranscript } from "./transcript.js";
 
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
-const CACHE_MAX_AGE_SEC = 86400;
+// 字幕は動画公開後まず変わらないため、キャッシュを長め（3日）にして
+// YouTube への再アクセス（＝レート制限に引っかかるリスク）を減らす。
+const CACHE_MAX_AGE_SEC = 259200;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
